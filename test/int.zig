@@ -2,7 +2,7 @@ const std = @import("std");
 const argparse = @import("argparse");
 
 test "int" {
-    var allocator = std.heap.page_allocator;
+    var allocator = std.testing.allocator;
 
     const c_str = [*:0]u8;
     var argv = [_]c_str{

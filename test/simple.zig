@@ -5,7 +5,7 @@ const str = []const u8;
 const c_str = [*:0]u8;
 
 test "simple" {
-    var allocator = std.heap.page_allocator;
+    var allocator = std.testing.allocator;
 
     var argv = [_]c_str{
         try allocator.dupeZ(u8, "argparse"),

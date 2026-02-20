@@ -5,13 +5,16 @@ const str = []const u8;
 const c_str = [*:0]u8;
 
 test "subcommand" {
-    var allocator = std.heap.page_allocator;
+    var allocator = std.testing.allocator;
 
     var argv = [_]c_str{
         try allocator.dupeZ(u8, "argparse"),
         try allocator.dupeZ(u8, "--names"),
         try allocator.dupeZ(u8, "Alice"),
         try allocator.dupeZ(u8, "Bob"),
+        try allocator.dupeZ(u8, "--ages"),
+        try allocator.dupeZ(u8, "30"),
+        try allocator.dupeZ(u8, "42"),
     };
     defer for (argv) |arg| {
         allocator.free(std.mem.span(arg));
@@ -21,7 +24,11 @@ test "subcommand" {
 
     const App = struct {
         names: []const str,
+        ages: []u8,
     };
     const app = try argparse.parseInto(App, .{ .allocator = allocator });
-    std.debug.print("slice: names={any}\n", app);
+    defer allocator.free(app.names);
+    defer allocator.free(app.ages);
+
+    std.debug.print("slice: names={any} ages={any}\n", app);
 }

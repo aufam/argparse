@@ -109,30 +109,44 @@ fn apply(
             const enum_value = std.meta.stringToEnum(field_type, value) orelse return error.InvalidEnumValue;
             @field(result, field_name) = enum_value;
         },
-        .@"struct" => {
-            if (@hasDecl(field_type, "__argparse_option__")) {
-                const ptr = &@field(result, field_name);
-                return try apply(field_type, field_type.__argparse_type__, "value", ptr, arg, args, allocator);
-            } else {
-                return error.UnsupportedType;
-            }
+        .@"struct" => if (@hasDecl(field_type, "__argparse_option__")) {
+            const ptr = &@field(result, field_name);
+            return try apply(field_type, field_type.__argparse_type__, "value", ptr, arg, args, allocator);
+        } else {
+            return error.UnsupportedType;
         },
-        .pointer => |ptr| if (ptr.size == .slice and ptr.child == str) {
-            if (arg) |_| args.inner.index -= 1; // put back the argument for dupeZ;
+        .pointer => |ptr| if (ptr.size == .slice and isPrimitive(ptr.child)) {
+            if (arg) |_| args.inner.index -= 1;
 
             const start = args.inner.index;
             var len: usize = 0;
             while (args.next()) |a| {
                 if (std.mem.startsWith(u8, a, "-")) {
-                    args.inner.index -= 1; // put back the argument for the next option;
+                    args.inner.index -= 1;
                     break;
                 }
                 len += 1;
             }
 
-            var out = allocator.alloc([]const u8, len) catch return error.OutOfMemory;
+            var out = allocator.alloc(ptr.child, len) catch return error.OutOfMemory;
             for (std.os.argv[start .. start + len], 0..) |a, i| {
-                out[i] = std.mem.span(a);
+                if (ptr.child == str) {
+                    out[i] = std.mem.span(a);
+                } else if (@typeInfo(ptr.child) == .int) {
+                    out[i] = std.fmt.parseInt(ptr.child, std.mem.span(a), 0) catch |err| switch (err) {
+                        error.InvalidCharacter, error.Overflow => return error.ConversionFailure,
+                        else => |e| return e,
+                    };
+                } else if (@typeInfo(ptr.child) == .float) {
+                    out[i] = std.fmt.parseFloat(ptr.child, std.mem.span(a)) catch |err| switch (err) {
+                        error.InvalidCharacter => return error.ConversionFailure,
+                        else => |e| return e,
+                    };
+                } else if (@typeInfo(ptr.child) == .@"enum") {
+                    out[i] = std.meta.stringToEnum(ptr.child, std.mem.span(a)) orelse return error.InvalidEnumValue;
+                } else {
+                    unreachable;
+                }
             }
 
             @field(result, field_name) = out;
@@ -148,7 +162,7 @@ fn apply(
 fn isPrimitive(T: type) bool {
     return switch (@typeInfo(T)) {
         .int, .float, .@"enum" => true,
-        .pointer => |ptr| ptr.size == .slice and ptr.child == u8,
+        .pointer => |ptr| ptr.size == .slice and ptr.child == u8, // string slice
         else => false,
     };
 }
