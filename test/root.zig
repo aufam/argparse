@@ -5,6 +5,7 @@ test {
     _ = @import("optional.zig");
     _ = @import("subcommand.zig");
     _ = @import("inverse.zig");
+    _ = @import("slice.zig");
     _ = @import("positional.zig");
     _ = @import("unsupported.zig");
     _ = @import("unknown_flag.zig");

@@ -7,6 +7,7 @@ const ParseError = @import("error.zig").ParseError;
 short: []const str = &.{},
 long: []const str = &.{},
 long_inverse: []const str = &.{},
+help: ?str = null,
 
 pub fn of(comptime field: std.builtin.Type.StructField) ?Self {
     const ret: ?Self = switch (@typeInfo(field.type)) {

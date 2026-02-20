@@ -7,9 +7,10 @@ const ParseError = @import("error.zig").ParseError;
 short: []const str = &.{},
 long: []const str = &.{},
 positional: bool = false,
+help: ?str = null,
 
 fn check(comptime T: type) bool {
-    if (T == []const u8) {
+    if (T == str) {
         return true;
     }
 
@@ -17,7 +18,7 @@ fn check(comptime T: type) bool {
         .int, .float, .@"enum" => true,
         .@"struct" => @hasDecl(T, "__argparse_option__"),
         .optional => |opt| check(opt.child),
-        // TODO: std.ArrayList?
+        .pointer => |ptr| ptr.size == .slice and isPrimitive(ptr.child),
         else => return false,
     };
 }
@@ -45,10 +46,11 @@ pub fn match(
     self: Self,
     comptime T: type,
     comptime field_type: type,
-    comptime field_name: []const u8,
+    comptime field_name: str,
     result: *T,
     arg: str,
     args: *std.process.ArgIterator,
+    allocator: std.mem.Allocator,
 ) ParseError!bool {
     if (std.mem.startsWith(u8, arg, "--")) {
         const body = arg[2..];
@@ -57,19 +59,15 @@ pub fn match(
         const name = if (eq_index) |i| body[0..i] else body;
         const value = if (eq_index) |i| body[i + 1 ..] else null;
 
-        for (self.long) |flag| {
-            if (std.mem.eql(u8, flag, name)) {
-                return try apply(T, field_type, field_name, result, value, args);
-            }
-        }
+        for (self.long) |flag| if (std.mem.eql(u8, flag, name)) {
+            return try apply(T, field_type, field_name, result, value, args, allocator);
+        };
     } else if (std.mem.startsWith(u8, arg, "-")) {
-        for (self.short) |flag| {
-            if (std.mem.eql(u8, flag, arg[1..])) {
-                return try apply(T, field_type, field_name, result, null, args);
-            }
-        }
+        for (self.short) |flag| if (std.mem.eql(u8, flag, arg[1..])) {
+            return try apply(T, field_type, field_name, result, null, args, allocator);
+        };
     } else if (self.positional) {
-        return try apply(T, field_type, field_name, result, arg, args);
+        return try apply(T, field_type, field_name, result, arg, args, allocator);
     }
     return false;
 }
@@ -77,10 +75,11 @@ pub fn match(
 fn apply(
     comptime T: type,
     comptime field_type: type,
-    comptime field_name: []const u8,
+    comptime field_name: str,
     result: *T,
-    arg: ?[]const u8,
+    arg: ?str,
     args: *std.process.ArgIterator,
+    allocator: std.mem.Allocator,
 ) ParseError!bool {
     if (field_type == str) {
         const value = arg orelse args.next() orelse return error.MissingValue;
@@ -113,13 +112,43 @@ fn apply(
         .@"struct" => {
             if (@hasDecl(field_type, "__argparse_option__")) {
                 const ptr = &@field(result, field_name);
-                return try apply(field_type, field_type.__argparse_type__, "value", ptr, arg, args);
+                return try apply(field_type, field_type.__argparse_type__, "value", ptr, arg, args, allocator);
             } else {
                 return error.UnsupportedType;
             }
         },
-        .optional => |opt| return try apply(T, opt.child, field_name, result, arg, args),
+        .pointer => |ptr| if (ptr.size == .slice and ptr.child == str) {
+            if (arg) |_| args.inner.index -= 1; // put back the argument for dupeZ;
+
+            const start = args.inner.index;
+            var len: usize = 0;
+            while (args.next()) |a| {
+                if (std.mem.startsWith(u8, a, "-")) {
+                    args.inner.index -= 1; // put back the argument for the next option;
+                    break;
+                }
+                len += 1;
+            }
+
+            var out = allocator.alloc([]const u8, len) catch return error.OutOfMemory;
+            for (std.os.argv[start .. start + len], 0..) |a, i| {
+                out[i] = std.mem.span(a);
+            }
+
+            @field(result, field_name) = out;
+        } else {
+            return error.UnsupportedType;
+        },
+        .optional => |opt| return try apply(T, opt.child, field_name, result, arg, args, allocator),
         else => return error.UnsupportedType,
     }
     return true;
+}
+
+fn isPrimitive(T: type) bool {
+    return switch (@typeInfo(T)) {
+        .int, .float, .@"enum" => true,
+        .pointer => |ptr| ptr.size == .slice and ptr.child == u8,
+        else => false,
+    };
 }

@@ -7,9 +7,8 @@ pub const Config = struct {
 };
 
 pub fn parseInto(comptime T: type, config: Config) ParseError!T {
-    _ = config;
     var args = std.process.args();
     _ = args.next().?;
 
-    return Subcommand.apply(T, &args);
+    return Subcommand.apply(T, &args, config.allocator);
 }

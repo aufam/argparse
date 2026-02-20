@@ -6,4 +6,5 @@ pub const ParseError = error{
     InvalidEnumValue,
     ConversionFailure,
     UnknownFlag,
+    OutOfMemory,
 };
