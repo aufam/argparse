@@ -55,15 +55,20 @@ pub fn match(
     if (std.mem.eql(u8, self.subcommand, arg)) {
         switch (@typeInfo(field_type)) {
             .optional => |opt| {
-                if (@hasDecl(opt.child, "__argparse_subcommand__")) {
-                    @field(result, field_name) = .{ .value = try apply(opt.child.__argparse_type__, args, allocator) };
-                } else {
-                    @field(result, field_name) = try apply(opt.child, args, allocator);
+                if (@typeInfo(opt.child) == .@"struct") {
+                    if (@hasDecl(opt.child, "__argparse_subcommand__")) {
+                        @field(result, field_name) = .{ .value = try apply(opt.child.__argparse_type__, args, allocator) };
+                    } else {
+                        @field(result, field_name) = try apply(opt.child, args, allocator);
+                    }
+                    return true;
                 }
-                return true;
             },
-            else => return error.UnsupportedType,
+            else => {},
         }
+
+        std.debug.print("Subcommand field `{s}` must be an optional struct with `__argparse_subcommand__` declaration\n", .{field_name});
+        return error.UnsupportedType;
     }
     return false;
 }
@@ -89,8 +94,18 @@ pub fn apply(comptime T: type, args: *std.process.ArgIterator, allocator: std.me
                 @field(result, field.name) = null;
             };
             required_fields[i] = null;
+        } else if (@typeInfo(field.type) == .@"struct" and @hasDecl(field.type, "__argparse_flag__")) {
+            _ = field.defaultValue() orelse {
+                @field(result, field.name) = .{ .value = false };
+            };
+            required_fields[i] = null;
         } else {
-            required_fields[i] = if (field.defaultValue()) |_| null else field.name;
+            if (field.defaultValue()) |default| {
+                @field(result, field.name) = default;
+                required_fields[i] = null;
+            } else {
+                required_fields[i] = field.name;
+            }
         }
     }
 
@@ -185,7 +200,7 @@ fn printHelp(
                     }
                     std.debug.print("\n", .{});
                 },
-                .option => |option| if (!option.positional) {
+                .option => |option| if (option.short.len > 0 or option.long.len > 0) {
                     std.debug.print("  ", .{});
                     for (option.short) |short| {
                         std.debug.print("-{s}, ", .{short});
