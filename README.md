@@ -8,19 +8,19 @@ A simple, fast argument parser for Zig.
 - Struct-based API
 - Minimal runtime overhead
 
-### Getting started
-run:
+### Getting Started
+
+Add to your project:
 ```bash
 zig fetch --save "git+https://github.com/aufam/argparse#v0.1.0"
 ```
 
-in `build.zig`:
+In `build.zig`:
 ```zig
     const argparse = b.dependency("argparse", .{
         .target = target,
         .optimize = optimize,
     });
-
     exe.root_module.addImport("argparse", argparse.module("argparse"));
 ```
 
