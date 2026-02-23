@@ -16,12 +16,12 @@ zig fetch --save "git+https://github.com/aufam/argparse#v0.1.0"
 
 in `build.zig`:
 ```zig
-    const zap = b.dependency("argparse", .{
+    const argparse = b.dependency("argparse", .{
         .target = target,
         .optimize = optimize,
     });
 
-    exe.root_module.addImport("argparse", zap.module("argparse"));
+    exe.root_module.addImport("argparse", argparse.module("argparse"));
 ```
 
 
