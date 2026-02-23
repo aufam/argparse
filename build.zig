@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
     });
 
-    const argparse_tests = b.addModule("ws-chat", .{
+    const argparse_tests = b.addModule("argparse_tests", .{
         .target = target,
         .optimize = optimize,
         .root_source_file = b.path("test/root.zig"),

@@ -1,4 +1,5 @@
 pub const ParseError = error{
+    Help,
     Unmatched,
     MissingValue,
     MissingRequiredField,

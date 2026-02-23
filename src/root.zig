@@ -23,7 +23,7 @@ pub fn Option(T: type, comptime spec: OptionSpec) type {
 
 pub fn Positional(T: type) type {
     return struct {
-        pub const __argparse_option__ = .{ .positional = true };
+        pub const __argparse_option__ = OptionSpec{ .positional = true };
         pub const __argparse_type__ = T;
         value: T,
     };

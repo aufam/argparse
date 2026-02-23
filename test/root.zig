@@ -10,4 +10,5 @@ test {
     _ = @import("unsupported.zig");
     _ = @import("unknown_flag.zig");
     _ = @import("missing_required.zig");
+    _ = @import("help.zig");
 }

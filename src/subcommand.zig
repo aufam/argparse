@@ -81,16 +81,16 @@ pub fn apply(comptime T: type, args: *std.process.ArgIterator, allocator: std.me
     inline for (ti.fields, 0..) |field, i| {
         if (field.type == bool) {
             _ = field.defaultValue() orelse {
-                @field(result, field.name) = false; // set to false if bool field has no default value
+                @field(result, field.name) = false;
             };
-            required_fields[i] = null; // bool fields are not required
+            required_fields[i] = null;
         } else if (@typeInfo(field.type) == .optional) {
             _ = field.defaultValue() orelse {
-                @field(result, field.name) = null; // set to null if option field has no default value
+                @field(result, field.name) = null;
             };
-            required_fields[i] = null; // option fields are not required
+            required_fields[i] = null;
         } else {
-            required_fields[i] = field.name; // non-optional fields are required
+            required_fields[i] = if (field.defaultValue()) |_| null else field.name;
         }
     }
 
@@ -124,6 +124,10 @@ fn applyImpl(
     allocator: std.mem.Allocator,
 ) ParseError!void {
     const arg = args.next() orelse return;
+    if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+        printHelp(ti, required_fields, kinds);
+        return error.Help;
+    }
 
     inline for (ti.fields, 0..) |field, i| {
         if (kinds[i]) |kind| {
@@ -133,7 +137,7 @@ fn applyImpl(
                 .subcommand => |subcommand| try subcommand.match(T, field.type, field.name, result, arg, args, allocator),
             };
             if (matched) {
-                kinds[i] = null; // mark as matched
+                kinds[i] = null; // TODO: what about late help flag?
                 required_fields[i] = null;
                 return try applyImpl(T, ti, result, args, required_fields, kinds, allocator);
             }
@@ -142,4 +146,95 @@ fn applyImpl(
 
     std.debug.print("Cannot process arg={s}\n", .{arg});
     return error.UnknownFlag;
+}
+
+fn printHelp(
+    comptime ti: std.builtin.Type.Struct,
+    required_fields: *[ti.fields.len]?str,
+    kinds: *[ti.fields.len]?Kind,
+) void {
+    std.debug.print("Usage: {s} [options]", .{std.os.argv[0]}); // TODO: subcommand usage?
+    inline for (ti.fields, 0..) |field, i| {
+        if (kinds[i]) |kind| {
+            switch (kind) {
+                .option => |option| if (option.positional) {
+                    std.debug.print(" <{s}>", .{field.name});
+                },
+                else => {},
+            }
+        }
+    }
+
+    std.debug.print("\n\nOptions:\n", .{});
+    inline for (ti.fields, 0..) |field, i| {
+        if (kinds[i]) |kind| {
+            switch (kind) {
+                .flag => |flag| {
+                    std.debug.print("  ", .{});
+                    for (flag.short) |short| {
+                        std.debug.print("-{s}, ", .{short});
+                    }
+                    for (flag.long) |long| {
+                        std.debug.print("--{s}, ", .{long});
+                    }
+                    for (flag.long_inverse) |long| {
+                        std.debug.print("--{s}, ", .{long});
+                    }
+                    if (flag.help) |help| {
+                        std.debug.print(": {s} ", .{help});
+                    }
+                    std.debug.print("\n", .{});
+                },
+                .option => |option| if (!option.positional) {
+                    std.debug.print("  ", .{});
+                    for (option.short) |short| {
+                        std.debug.print("-{s}, ", .{short});
+                    }
+                    for (option.long) |long| {
+                        std.debug.print("--{s}, ", .{long});
+                    }
+                    if (required_fields[i]) |_| {
+                        std.debug.print("<required> ", .{});
+                    }
+                    if (option.help) |help| {
+                        std.debug.print(": {s} ", .{help});
+                    }
+                    if (field.type != bool) {
+                        if (field.defaultValue()) |default| {
+                            if (@typeInfo(@TypeOf(default)) == .@"struct" and @hasDecl(@TypeOf(default), "__argparse_option__")) {
+                                const V = @TypeOf(default.value);
+                                if (V == str) {
+                                    std.debug.print("(default: {s})", .{default.value});
+                                } else {
+                                    std.debug.print("(default: {any})", .{default.value});
+                                }
+                            } else if (@TypeOf(default) == str) {
+                                std.debug.print("(default: {s})", .{default});
+                            } else {
+                                std.debug.print("(default: {any})", .{default});
+                            }
+                        }
+                    }
+                    std.debug.print("\n", .{});
+                },
+                else => {},
+            }
+        }
+    }
+
+    std.debug.print("\nSubcommands:\n", .{});
+    inline for (ti.fields, 0..) |_, i| {
+        if (kinds[i]) |kind| {
+            switch (kind) {
+                .subcommand => |subcommand| {
+                    std.debug.print("  {s}", .{subcommand.subcommand});
+                    if (subcommand.help) |help| {
+                        std.debug.print(": {s}, ", .{help});
+                    }
+                    std.debug.print("\n", .{});
+                },
+                else => {},
+            }
+        }
+    }
 }
