@@ -11,7 +11,7 @@ A simple, fast argument parser for Zig.
 ### Getting started
 run:
 ```bash
-zig fetch --save "git+https://github.com/zigzap/zap#v0.11.0"
+zig fetch --save "git+https://github.com/aufam/argparse#v0.1.0"
 ```
 
 in `build.zig`:
@@ -134,3 +134,4 @@ Rules:
 ### TODO
 - [ ] Better help message.
 - [ ] Better compile error message.
+- [ ] Windows and wasm.
