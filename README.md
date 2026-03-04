@@ -32,44 +32,53 @@ const std = @import("std");
 const argparse = @import("argparse");
 
 const App = struct {
+    /// boolean
+    verbose: bool,
+
+    /// enum, fallback value is optional, but if provided, it must be a valid enum variant
+    @"log-level": enum { trace, info, debug } = .info,
+
+    //
     // subcommands must be ?struct {...}
+    //
     version: ?struct {},
 
     run: ?struct {
-        /// non-bool and non-optional fields are required unless they have a default value
+        //
+        // non-bool and non-optional fields are required unless they have a default value
+        //
 
-        // string slice
+        /// string slice
         name: []const u8,
 
-        // integer
+        /// integer
         age: u32,
 
-        // float
+        /// float
         height: f32,
 
-        // array slice type, must be freed, and must not be confused with positional arguments
+        /// array slice type, must be freed, and must not be confused with positional arguments
         hobbies: []const []const u8,
 
-        // with default value, implies optional
+        /// with default value, implies optional
         country: []const u8 = "Unknown",
 
-        // optional value
+        /// optional value
         nickname: ?[]const u8,
 
-        /// custom options
+        //
+        // custom options
+        //
 
-        // positional argument
+        /// positional arguments
         input: argparse.Positional([]const u8),
 
-        // can be flagged or positional
+        /// can be an option or positional
         output: argparse.Option([]const u8, .{ .short = &.{"o"}, .long = &.{"output"}, .help = "Output file path", .positional = true }),
+
+        /// custom flag
+        print_hash: argparse.Flag(.{ .short = &.{"H"}, .long = &.{"hash"}, .help = "Print the hash of the input file" }),
     },
-
-    // boolen flags with --no- variants
-    verbose: argparse.Flag(.{ .short = &.{"v"}, .long = &.{"verbose"}, .long_inverse = &.{"no-verbose"}, .help = "Verbose output" }),
-
-    // enums
-    @"log-level": ?enum { trace, info, debug } = .info,
 };
 
 pub fn main() !void {
@@ -91,7 +100,14 @@ pub fn main() !void {
         // don't forget to free slice types
         defer allocator.free(run.hobbies);
 
+        // accessing custom flags
+        const input: []const u8 = run.input.value;
+        const output: []const u8 = run.output.value;
+        const print_hash: bool = run.print_hash.value;
+
         // run the application with the provided arguments
+    } else {
+        // no subcommand provided, handle the case if necessary
     }
 }
 ```
@@ -128,6 +144,7 @@ Rules:
   ./app input.txt -o output.txt -m foo bar # ok
   ./app -m foo bar -o output.txt input.txt # ok
   ./app -m foo bar input.txt -o output.txt # err: missing input field, because the parser will assume input.txt is the value for the -m option
+  ./app -o output.txt -m foo bar -- input.txt # ok
   ```
 
 

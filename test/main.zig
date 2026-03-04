@@ -2,69 +2,54 @@ const std = @import("std");
 const argparse = @import("argparse");
 
 const App = struct {
+    /// boolean
+    verbose: bool,
+
+    /// enum, fallback value is optional, but if provided, it must be a valid enum variant
+    @"log-level": enum { trace, info, debug } = .info,
+
+    //
     // subcommands must be ?struct {...}
+    //
     version: ?struct {},
 
     run: ?struct {
-        /// non-bool and non-optional fields are required unless they have a default value
+        //
+        // non-bool and non-optional fields are required unless they have a default value
+        //
 
-        // string slice
+        /// string slice
         name: []const u8,
 
-        // integer
+        /// integer
         age: u32,
 
-        // float
+        /// float
         height: f32,
 
-        // array slice type, must be freed, and must not be confused with positional arguments
+        /// array slice type, must be freed, and must not be confused with positional arguments
         hobbies: []const []const u8,
 
-        // with default value, implies optional
+        /// with default value, implies optional
         country: []const u8 = "Unknown",
 
-        // optional value
+        /// optional value
         nickname: ?[]const u8,
 
-        /// custom options
+        //
+        // custom options
+        //
 
-        // positional arguments
+        /// positional arguments
         input: argparse.Positional([]const u8),
 
-        // can be flagged or positional
+        /// can be flagged or positional
         output: argparse.Option([]const u8, .{ .short = &.{"o"}, .long = &.{"output"}, .help = "Output file path", .positional = true }),
+
+        /// custom flag
+        print_hash: argparse.Flag(.{ .short = &.{"H"}, .long = &.{"hash"}, .help = "Print the hash of the input file" }),
     },
-
-    // boolen flags with --no- variants
-    verbose: argparse.Flag(.{ .short = &.{"v"}, .long = &.{"verbose"}, .long_inverse = &.{"no-verbose"}, .help = "Verbose output" }),
-
-    // enums
-    @"log-level": ?enum { trace, info, debug } = .info,
 };
-
-// pub fn main() !void {
-//     const allocator = std.heap.page_allocator;
-//
-//     const app = argparse.parseInto(App, .{ .allocator = allocator }) catch |err| if (err == argparse.ParseError.Help) {
-//         return; // help information is automatically printed by the library, so we can just exit
-//     } else {
-//         return err;
-//     };
-//
-//     // accessing custom flags
-//     const verbose = app.verbose.value;
-//
-//     if (app.version) |_| {
-//         // print version information
-//     }
-//
-//     if (app.run) |run| {
-//         // don't forget to free slice types
-//         defer allocator.free(run.hobbies);
-//
-//         // run the application with the provided arguments
-//     }
-// }
 
 test "main" {
     var allocator = std.testing.allocator;
@@ -93,8 +78,7 @@ test "main" {
 
     const app = try argparse.parseInto(App, .{ .allocator = allocator });
     if (app.run) |run| {
-        std.debug.print("name={s} age={d} height={d} country={s} hobbies={s},{s} input={s} output={s}\n", .{ run.name, run.age, run.height, run.country, run.hobbies[0], run.hobbies[1], run.input.value, run.output.value });
+        defer allocator.free(run.hobbies);
+        std.debug.print("main: name={s} age={d} height={d} country={s} hobbies={s},{s} input={s} output={s}\n", .{ run.name, run.age, run.height, run.country, run.hobbies[0], run.hobbies[1], run.input.value, run.output.value });
     }
-
-    defer allocator.free(app.run.?.hobbies);
 }
