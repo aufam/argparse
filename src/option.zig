@@ -51,8 +51,11 @@ pub fn match(
     arg: str,
     args: *std.process.ArgIterator,
     allocator: std.mem.Allocator,
+    positional_only: bool,
 ) ParseError!bool {
-    if (std.mem.startsWith(u8, arg, "--")) {
+    if (positional_only) {
+        return if (self.positional) try apply(T, field_type, field_name, result, arg, args, allocator, true) else false;
+    } else if (std.mem.startsWith(u8, arg, "--")) {
         const body = arg[2..];
 
         const eq_index = std.mem.indexOfScalar(u8, body, '=');
@@ -60,14 +63,14 @@ pub fn match(
         const value = if (eq_index) |i| body[i + 1 ..] else null;
 
         for (self.long) |flag| if (std.mem.eql(u8, flag, name)) {
-            return try apply(T, field_type, field_name, result, value, args, allocator);
+            return try apply(T, field_type, field_name, result, value, args, allocator, false);
         };
     } else if (std.mem.startsWith(u8, arg, "-")) {
         for (self.short) |flag| if (std.mem.eql(u8, flag, arg[1..])) {
-            return try apply(T, field_type, field_name, result, null, args, allocator);
+            return try apply(T, field_type, field_name, result, null, args, allocator, false);
         };
     } else if (self.positional) {
-        return try apply(T, field_type, field_name, result, arg, args, allocator);
+        return try apply(T, field_type, field_name, result, arg, args, allocator, false);
     }
     return false;
 }
@@ -80,6 +83,7 @@ fn apply(
     arg: ?str,
     args: *std.process.ArgIterator,
     allocator: std.mem.Allocator,
+    positional_only: bool,
 ) ParseError!bool {
     if (field_type == str) {
         const value = arg orelse args.next() orelse return error.MissingValue;
@@ -111,7 +115,7 @@ fn apply(
         },
         .@"struct" => if (@hasDecl(field_type, "__argparse_option__")) {
             const ptr = &@field(result, field_name);
-            return try apply(field_type, field_type.__argparse_type__, "value", ptr, arg, args, allocator);
+            return try apply(field_type, field_type.__argparse_type__, "value", ptr, arg, args, allocator, positional_only);
         } else {
             return error.UnsupportedType;
         },
@@ -121,7 +125,7 @@ fn apply(
             const start = args.inner.index;
             var len: usize = 0;
             while (args.next()) |a| {
-                if (std.mem.startsWith(u8, a, "-")) {
+                if (!positional_only and std.mem.startsWith(u8, a, "-")) {
                     args.inner.index -= 1;
                     break;
                 }
@@ -153,7 +157,7 @@ fn apply(
         } else {
             return error.UnsupportedType;
         },
-        .optional => |opt| return try apply(T, opt.child, field_name, result, arg, args, allocator),
+        .optional => |opt| return try apply(T, opt.child, field_name, result, arg, args, allocator, positional_only),
         else => return error.UnsupportedType,
     }
     return true;

@@ -117,7 +117,7 @@ pub fn apply(comptime T: type, args: *std.process.ArgIterator, allocator: std.me
         };
     }
 
-    try applyImpl(T, ti, &result, args, &required_fields, &kinds, allocator);
+    try applyImpl(T, ti, &result, args, &required_fields, &kinds, allocator, false);
 
     for (required_fields) |field| {
         if (field) |name| {
@@ -137,6 +137,7 @@ fn applyImpl(
     required_fields: *[ti.fields.len]?str,
     kinds: *[ti.fields.len]?Kind,
     allocator: std.mem.Allocator,
+    positional_only: bool,
 ) ParseError!void {
     const arg = args.next() orelse return;
     if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
@@ -144,17 +145,21 @@ fn applyImpl(
         return error.Help;
     }
 
+    if (!positional_only and std.mem.eql(u8, arg, "--")) {
+        return try applyImpl(T, ti, result, args, required_fields, kinds, allocator, true);
+    }
+
     inline for (ti.fields, 0..) |field, i| {
         if (kinds[i]) |kind| {
             const matched = switch (kind) {
-                .flag => |flag| try flag.match(T, field.type, field.name, result, arg),
-                .option => |option| try option.match(T, field.type, field.name, result, arg, args, allocator),
-                .subcommand => |subcommand| try subcommand.match(T, field.type, field.name, result, arg, args, allocator),
+                .flag => |flag| if (positional_only) false else try flag.match(T, field.type, field.name, result, arg),
+                .option => |option| try option.match(T, field.type, field.name, result, arg, args, allocator, positional_only),
+                .subcommand => |subcommand| if (positional_only) false else try subcommand.match(T, field.type, field.name, result, arg, args, allocator),
             };
             if (matched) {
                 kinds[i] = null; // TODO: what about late help flag?
                 required_fields[i] = null;
-                return try applyImpl(T, ti, result, args, required_fields, kinds, allocator);
+                return try applyImpl(T, ti, result, args, required_fields, kinds, allocator, positional_only);
             }
         }
     }
