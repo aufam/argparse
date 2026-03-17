@@ -4,7 +4,7 @@ const argparse = @import("argparse");
 const c_str = [*:0]u8;
 const str = []const u8;
 
-test "optional" {
+test "positional" {
     var allocator = std.testing.allocator;
 
     var argv = [_]c_str{
@@ -28,8 +28,8 @@ test "optional" {
     };
     const App = struct {
         verbose: bool,
-        level: argparse.Option(LogLevel, .{ .positional = true }),
-        level2: argparse.Option(LogLevel, .{ .positional = true }),
+        level: argparse.Positional(LogLevel),
+        level2: argparse.Positional(LogLevel),
         rest: argparse.Positional([]const str),
     };
     std.debug.print("optional: ", .{});

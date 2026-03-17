@@ -90,8 +90,15 @@ pub fn main() !void {
         return err;
     };
 
-    // accessing custom flags
-    const verbose = app.verbose.value;
+    if (app.verbose) {
+        // enable verbose logging
+    }
+
+    switch (app."log-level") {
+        .trace => { /* set log level to trace */ },
+        .info => { /* set log level to info */ },
+        .debug => { /* set log level to debug */ },
+    }
 
     // subcommands are ensured to be mutually exclusive, so we can use if-else statements to handle them
     if (app.version) |_| {
